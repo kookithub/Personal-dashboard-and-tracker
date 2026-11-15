@@ -1,0 +1,13 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  // The public demo: sample data in the browser only. No database, no password, no secrets.
+  // Built and published with `npm run deploy:demo` (or Cloudflare's GitHub builds, see README).
+  "name": "dashboard-demo",
+  "main": ".open-next/worker.js",
+  "compatibility_date": "2026-10-01",
+  "compatibility_flags": ["nodejs_compat", "global_fetch_strictly_public"],
+  "assets": {
+    "directory": ".open-next/assets",
+    "binding": "ASSETS"
+  }
+}

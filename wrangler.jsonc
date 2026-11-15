@@ -1,0 +1,21 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "home-dashboard",
+  // Built by `opennextjs-cloudflare build` from the Next.js app.
+  "main": ".open-next/worker.js",
+  "compatibility_date": "2026-10-01",
+  "compatibility_flags": ["nodejs_compat", "global_fetch_strictly_public"],
+  "assets": {
+    "directory": ".open-next/assets",
+    "binding": "ASSETS"
+  },
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "home-dashboard",
+      // Filled in by `npm run setup` (wrangler d1 create home-dashboard).
+      "database_id": "00000000-0000-0000-0000-000000000000"
+    }
+  ]
+  // Secrets (set with `wrangler secret put`): APP_PASSWORD, SESSION_SECRET
+}
