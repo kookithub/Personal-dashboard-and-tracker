@@ -70,6 +70,8 @@ export function EmbedHost({ children }) {
   // Lays each frame over its placeholder, every frame of the screen (cheap: a few rectangles), so it
   // follows scrolling, resizing and dragging. Styles are only written when something changed.
   useLayoutEffect(() => {
+    // No players open: nothing to lay out, so no work every frame.
+    if (!Object.keys(frames).length) { if (awayRef.current.length) { awayRef.current = []; setAway([]); } return; }
     let raf;
     const last = new Map();
     const tick = () => {

@@ -2446,6 +2446,8 @@ input[type="range"] { width: 100%; accent-color: var(--accent); }
 }
 .b-embed { display: block; width: 100%; border: 0; border-radius: var(--radius-s); background: var(--tile-2); }
 /* Embed players live in one layer over the page (components/EmbedHost.jsx) so they keep playing across tabs. */
+/* Inline fields in notes ([due:: …]) as small labels. */
+.b-md .b-md-field { display: inline-block; margin-left: 4px; padding: 0 7px; border-radius: 99px; font-size: 0.82em; line-height: 1.6; background: var(--tile-2); color: var(--muted); white-space: nowrap; }
 .b-embed-slot { display: flex; align-items: center; justify-content: center; color: var(--muted); font-size: 12px; }
 .b-embed-slot span { display: inline-flex; align-items: center; gap: 6px; opacity: 0; }
 .b-editing .b-embed-slot span { opacity: 1; }

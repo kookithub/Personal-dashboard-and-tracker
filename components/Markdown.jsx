@@ -5,7 +5,7 @@ import { useEffect, useMemo, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { marked } from "marked";
 import DOMPurify from "dompurify";
-import { TPL, clean, dayKey, edit, fileName, noteHref, parseFrontmatter } from "@/lib/notes";
+import { M, TPL, clean, dayKey, edit, fileName, noteHref, parseFrontmatter } from "@/lib/notes";
 import { useApp } from "./AppProvider";
 import { Empty } from "./ui";
 
@@ -29,6 +29,12 @@ export default function Markdown({ path, interactive = true }) {
     body = body.replace(/(!?)\[\[([^\]|#]+)(#[^\]|]*)?(?:\|([^\]]+))?\]\]/g, (_, emb, target, _h, alias) =>
       `[${alias || target}](${noteHref(resolve(target) || target.trim() + ".md")})`);
     body = body.replace(/%%(?!DUE%%)[\s\S]*?%%/g, ""); // Obsidian comments
+    // Inline fields ([due:: 2026-11-15], [priority:: high]) show as small labels instead of raw text.
+    body = body.replace(/\[([\w-]+)::\s*([^\]\n]*)\]/g, (_, k, v) => {
+      const day = /^\d{4}-\d{2}-\d{2}$/.test(v.trim()) ? M(v.trim()) : null;
+      const text = k === "due" && day ? "📅 " + day.format(day.year() === M().year() ? "D MMM" : "D MMM YYYY") : `${k}: ${v.trim()}`;
+      return `<span class="b-md-field">${text.replace(/[<>&]/g, "")}</span>`;
+    });
     const parts = body.split(DUE).map(safeHtml);
     const taskLines = [];
     let fence = false;

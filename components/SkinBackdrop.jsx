@@ -287,7 +287,7 @@ function HyperBackdrop({ hy }) {
   const ref = useRef();
   const count = Math.min(BANDS.length, Math.max(1, Math.round(+hy.count || 4)));
   const width = Math.min(3, Math.max(0.3, +hy.width || 1));
-  const glow = Math.min(2, Math.max(0, +hy.glow ?? 1));
+  const glow = Number.isFinite(+hy.glow) && hy.glow !== "" ? Math.min(2, Math.max(0, +hy.glow)) : 1;
   // Band pictures are redrawn only when their look changes (width, glow, colors), never per frame.
   const ribbon = hy.style === "ribbon";
   // Ribbons: white plus two flash colors per band (bands take turns which two), drawn once.
