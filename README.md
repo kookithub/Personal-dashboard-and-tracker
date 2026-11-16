@@ -25,45 +25,153 @@ I kept my life in Markdown notes (projects, courses, exams, daily notes), but no
 everything due, every course and every project on one page I can open on my phone, without moving the notes into
 someone else's app: **the notes stay plain Markdown** and remain the single source of truth.
 
+## Table of contents
+Features · Tech stack · Architecture · How it works · Results and outputs · Get started · Commands · Repository structure · Data and storage · Security · Engineering notes · Project Facts (for resume)
+
 ## Features
-- **Dashboard**: tasks by due date (overdue, today, next 7 days, later), a calendar with Google Calendar events and
-  homework from any iCal link, courses with exam study progress, projects, ongoing habits, daily notes, search and a
-  note editor. Tasks, due dates, steps and statuses are read from the notes themselves (`- [ ]` lines and front matter).
-- **Customizable without code**: every tab is a saved layout. Drag cards, resize them, give any card its own color,
-  rename tabs, edit headings and card titles, and add widgets: pictures, sticky notes, countdowns, world clocks,
-  weather, links, a note, and **embeds** (paste a link or a site's `<iframe>` code; music **keeps playing across tabs**).
-- **Themes**: calm color palettes with your own colors and wallpaper, plus two animated themes: *Hyper* (neon light
-  trails or flashing ribbons, with an epilepsy-safe flash rate) and *Zeus* (Greek gods, lightning, and your own
-  **video slideshow**). Every theme has light and dark, its own font style, corners and card decoration.
-- **Nothing disappears by accident**: undo after ticking or deleting, a 30-day trash for notes, tasks, pictures and
-  videos, and conflict checks so an edit on one device never silently overwrites another.
-- **Security you can see**: one password, every **signed-in device listed** with log out per device, wrong-password
-  attempts recorded, and a warning when a new device signs in.
-- **Buddies**: little characters that walk around and jump onto cards, built-in or from your own pictures and GIFs.
-- **Guest mode / public demo**: the full app with made-up sample data, answered entirely in the browser.
+Everything below exists in the code; nothing is planned or mocked. The app has **no separate "tracker" modules**: tasks,
+courses, exam study progress, projects and ongoing habits are all *derived from Markdown notes*, and the visible
+dashboard is built from **14 built-in cards** and **9 widget types** arranged on **6 default tabs**.
 
-Full walkthrough: **[docs/GUIDE.md](docs/GUIDE.md)**.
+### Notes and the note editor
+- **Markdown notes are the source of truth** (`files` table: path, content, mtime). Folders are found by name anywhere in the
+  tree (`Projects`, `Academic`, `Life`, `Life/Ongoing`, `Daily`, `Templates`), so they still work after being moved.
+- **Reader and editor** (`components/NotePage.jsx`): read a note and tick its tasks, or edit raw Markdown. `Ctrl/Cmd+S` saves;
+  `Tab` inserts a tab character so sub-tasks can be typed; leaving with unsaved changes asks first.
+- **Markdown rendering** (`marked` + `DOMPurify`): GitHub-flavoured Markdown, `[[wiki links]]` (with `|alias` and `#heading`
+  parts) resolved to real notes, tickable task checkboxes, sanitised HTML (`<details>`, `<img>`...). Due dates written in a
+  note are shown as labels. A `dataview` block in a daily note is replaced by a "due today" list of tasks.
+- **Front matter** (`status`, `code`, `area`, `deadline`, `started`...) is parsed by a small hand-written YAML reader
+  (key/value and `- item` lists) in `lib/notes.js`.
+- **Search** (`SearchDialog.jsx`): searches note names and full text (name matches rank above text matches, 40 results,
+  snippet around the hit), or creates a new note from the query.
+- **Templates**: `Templates/Project`, `Course`, `Daily` notes with `{{title}}`, `{{date}}`, `{{date:FORMAT}}`, `{{time}}` placeholders (`fillTemplate`).
+- **Daily notes**: created from the calendar (click a day) as `Daily/YYYY-MM-DD.md`.
+- **Conflict-safe saving**: every save sends the version (`mtime`) it started from; a mismatch returns HTTP 409 and the newest version.
 
-## Engineering highlights
-- **Measured before fixing.** The animated theme spent ~1,800 ms drawing per second (Chrome tracing). Rebuilt to animate
-  only `transform` and `opacity`: **~4 ms per second**.
-- **Phone graphics memory.** An iPhone crash loop came from full-screen layers kept at 3x pixel density (an estimated
-  ~684 MB). Bands are now drawn once into small canvases, one slide is on the page at a time, and the page turns
-  animations off by itself after repeated crashes.
-- **Free-plan limits.** Cloudflare's free plan allows 10 ms of CPU per request. Decoding a 1 MB picture went from
-  ~110 ms to ~0.5 ms; videos are stored in 1 MB parts and served as byte ranges, one part per request (which iPhones
-  require anyway).
-- **Embeds that survive navigation.** An `<iframe>` that leaves the page stops, and moving one reloads it. Players live in
-  one layer that never unmounts and are laid over their card's placeholder every frame.
-- **Sessions you can revoke.** Each login is a database row behind an HMAC-signed cookie, so every device is visible and
-  can be logged out from any other.
+### Tasks and due dates
+- **Task syntax**: `- [ ] Name [due:: 2026-11-20]` with indented sub-tasks (step trees), ignoring fenced code blocks; each task
+  remembers its source file, line number, section heading, parent and children (`parseTasks`).
+- **Line-level edit functions** (`edit.done / rename / due / remove / addStep / setProp / restoreTask / appendUnder`): a task
+  change rewrites just that line (or block) of the note text.
+- **Home "Tasks" card and "All tasks" card**: overdue, due today, next 7 days, later, no date, and a folded **Done** group; quick
+  add with optional date; **"With steps"** dialog to create a parent task plus steps; rename, re-date, add step, delete.
+- **"Tasks with steps" card**: every task that has sub-tasks, with its progress.
+- **Undo** after ticking or deleting a task; deleted tasks (with steps) go to a 30-day **task bin** that remembers the heading
+  and parent they came from, and can be restored there (or to the `Life/Tasks.md` inbox if the note is gone).
 
-## Stack and architecture
-- **Next.js 16 + React 19** (App Router), plain CSS, no UI library.
-- Hosted on **Cloudflare Workers** through the OpenNext adapter; data in **Cloudflare D1** (SQLite).
-- **One small API** (`lib/server.js`): notes, settings, pictures, videos, trash, sessions and calendar links. Layout,
-  themes and widgets are settings stored as JSON, so the dashboard is rearranged in the app, not in code.
-- Fits the **free plan**: a few requests per visit, about one database row read per note, under 10 ms CPU per request.
+### Study (courses and exams)
+- **Courses** from `Academic/*.md`; tasks under an "Exam" heading are treated as **exam study steps**, kept apart from ordinary tasks.
+- **Exam prep card**: a progress ring (done steps / total steps across active courses).
+- **Courses / Courses with exams cards**: per-course progress, exams with dated study steps, project items; finished exams are folded.
+- **Homework card**: events from school iCal links (Canvas, Moodle, Blackboard, Schoology-style URLs auto-detected), each tickable;
+  ticked items whose day has passed fold behind "Show N finished" (`hw_done`, `hw_since` settings).
+- **Status switch** on course/project/ongoing notes (active, paused, done, archived; many synonyms count as inactive).
+  Inactive notes move to their own section ("Past courses", "Done & paused projects", "Stopped & paused"), never hidden.
+
+### Projects and life
+- **Projects card** (`Projects/*.md`): tiles with task progress, inline rename, status; separate "Done & paused" section.
+- **Ongoing card** (`Life/Ongoing/*.md`): habits/long-running things, with the same status handling.
+- **Life links**: configurable `Name | note | icon` shortcuts (defaults: Data Map and Money Map notes), as small or big tiles.
+- **Recently edited card**: notes by modified time, "Clear list" / "Show all" (per-device), and a link to the Trash.
+
+### Calendar
+- **Calendar card**: month grid with dots for daily notes, due tasks/exams and calendar events; select a day to list its tasks,
+  exams and events; open or create that day's daily note.
+- **iCal integration** (`lib/ical.js`, `/api/ical`): server fetches Google Calendar secret links and homework links; a custom
+  parser handles `VEVENT`, `RRULE` (DAILY/WEEKLY/MONTHLY/YEARLY, `INTERVAL`, `COUNT`, `UNTIL`, `BYDAY`), `EXDATE`, cancelled events, alarms
+  and folded lines, expanding events over a window of 2 months back to 6 months ahead. Results cached in the browser for 30 minutes.
+
+### Widgets (add to any tab)
+Picture (shapes: as is, square, wide, tall, fill; focus point), text / sticky note, countdown, world clock (time-zone), weather
+(Open-Meteo geocoding and forecast, WMO codes, cached 30 min), links, note (shows a note's content), **embed** and section heading.
+- **Embed widget**: paste a link or a site's `<iframe>`/blockquote embed code. Only the address and height are kept (never the pasted
+  code). Known sites are rewritten to embed URLs: YouTube (incl. shorts, playlists, start time), Spotify, Vimeo, TikTok, Instagram,
+  X/Twitter, SoundCloud, Apple Music, Google Docs/Sheets/Slides/Forms, Google Maps places.
+- **Players keep playing across tabs and notes** (`EmbedHost.jsx`): iframes live in one never-unmounted layer and are positioned
+  over a placeholder each animation frame; a floating music button brings the player back with a Stop control.
+
+### Customisation without code
+- **Tabs**: 6 built-in (Home, Tasks, Study, Projects, Life, Recent) plus your own; rename, reorder, pick from 32 icons, hide from the dock.
+- **Layout editor**: drag to reorder, resize (widths on a 6-column grid, separate phone widths), move cards between tabs, per-card box
+  colour (theme, glass, clear, 6 colours), editable page headings and card titles, greetings per time of day (`*word*` = coloured italics).
+- Layout lives in the `dashboard` setting as JSON (`lib/layout.js`), so a rearranged dashboard needs no deploy.
+
+### Themes and look
+- **10 palettes** (Classic/terracotta, Sage, Ocean, Rose, Plum, Forest, Sunset, Lagoon, Cherry, Mono), each with light and dark; custom colours,
+  wallpaper picture or 5 backdrop patterns (Glow, Plain, Mesh, Dots, Grid); **6 font styles**, **3 corner styles**, **6 card decorations**,
+  **3 card materials** (solid, glass, clear). Copy any theme to make your own.
+- **Hyper** (animated): neon-trail or ribbon bands (5 colour sets), live ticker, strobe/scan line/grid floor options, flash-rate limit with a
+  photosensitivity warning above 3 flashes/s, reduced-motion support.
+- **Zeus** (animated): 7 bundled images, lightning, sparks, floating bolts, and your **own slideshow** of uploaded pictures and videos (up to 30 MB each).
+- **Custom logo** (icon, text/emoji or picture) that also generates the home-screen icons (PWA manifest + apple-touch-icon).
+- **Buddies**: up to 6 characters (pixel cat, pixel bunny, blob, cat, ghost, or your own picture/GIF/sprite strip) with motions (explore, walk,
+  wander, peek, bounce), 3 activity levels, 3 speeds, size, custom speech lines with `{due}` / `{overdue}` placeholders.
+
+### Accounts, safety and recovery
+- Single password, **signed-in devices list** with per-device and "all others" logout, wrong-password log, new-sign-in warning.
+- **Trash** (30 days) for notes, tasks, pictures and videos; unused uploads are auto-binned by a periodic tidy-up.
+- **Download backup** (all notes and settings as one JSON file).
+- **Guest mode** and a **public demo build** with made-up sample data answered fully in the browser.
+- Installable as a home-screen web app (`manifest.webmanifest`, icons).
+
+### Keyboard shortcuts
+There are no global shortcuts. Local keys: `Ctrl/Cmd+S` save a note; `Tab` indent in the editor; `Enter`/`Space` toggle checkboxes and
+fold sections; `Enter` submits quick-add boxes and renames; `Escape` closes dialogs.
+
+## Tech stack
+| Area | Used |
+|---|---|
+| Framework | Next.js 16.4 (App Router, Turbopack) with React 19, JavaScript (JSX, no TypeScript apart from `open-next.config.ts`) |
+| Libraries | `marked` (Markdown), `dompurify` (HTML sanitising), `moment` (dates), `lucide-react` (icons) |
+| Styling | One hand-written stylesheet, `app/globals.css` (3,223 lines), CSS variables for themes; no UI library |
+| Hosting | Cloudflare Workers via `@opennextjs/cloudflare`; `wrangler` CLI |
+| Database | Cloudflare D1 (SQLite), 7 tables (`schema.sql`) |
+| External services | Google Calendar / school iCal feeds (user-supplied URLs), Open-Meteo (weather), embed hosts (YouTube, Spotify, etc.) |
+| Config (placeholders only) | secrets `APP_PASSWORD`, `SESSION_SECRET`; optional build vars `NEXT_PUBLIC_DEMO`, `NEXT_PUBLIC_REPO_URL` |
+
+## Architecture
+```mermaid
+flowchart LR
+  subgraph Browser
+    UI[React UI: Dashboard, tiles, widgets, NotePage]
+    AP[AppProvider: in-memory notes and settings]
+    BD[useBoardData: derive tasks, courses, projects]
+    LS[(localStorage: per-device view state)]
+    UI --> AP --> BD
+    AP --- LS
+  end
+  subgraph Cloudflare
+    W[Worker: Next.js via OpenNext]
+    API[lib/server.js API router]
+    D1[(D1 SQLite: files, settings, blobs, video_parts, sessions, login_log, login_fails)]
+    W --> API --> D1
+  end
+  AP -- fetch /api/* with HttpOnly cookie --> W
+  API -- fetch iCal links --> ICS[Google Calendar / school iCal]
+  UI -- weather --> OM[Open-Meteo]
+  UI -- iframes --> EMB[YouTube / Spotify / etc.]
+```
+
+## How it works
+1. **Load**: after login the browser calls `GET /api/files`, receiving every note and every setting in one response; they are kept in
+   memory (`AppProvider`). A periodic server "tidy-up" (at most every 6 hours) runs on this call.
+2. **Derive**: `useBoardData` (`components/board.jsx`) parses all notes into pages and tasks, then computes overdue / today / this week /
+   later lists, exam study progress, active vs inactive courses, projects and ongoing notes, and calendar marks. Nothing is stored twice.
+3. **Edit**: ticking, renaming or re-dating a task calls `processFile(path, fn)`, which applies a pure line edit to the note text and saves it
+   through `PUT /api/files` with the base version for conflict detection. Undo restores the previous text if the note has not changed since.
+4. **Layout and look** are JSON settings (`PUT /api/settings`); card/widget components are looked up in `CARD_VIEWS` and `WIDGET_TYPES`.
+5. **Uploads**: pictures go in as base64 rows in `blobs` (served immutable and sandboxed); videos are uploaded in 1 MB parts and served as
+   HTTP byte ranges, one part per request.
+6. **Calendars** are fetched server-side so links never sit in the browser; the client expands recurrences and caches for 30 minutes.
+7. **Guest mode** swaps `fetch` for an in-memory handler (`guestReply`) so no request reaches the server.
+
+## Results and outputs
+- A deployed Cloudflare Worker (`home-dashboard`) with a D1 database, or a database-free public demo Worker (`dashboard-demo`).
+- Production build verified for this README with `npx next build` (Next.js 16.4.6): compiles, 4 routes (`/` static, `/note/[...path]` and
+  `/api/[...route]` dynamic). Client JavaScript in `.next/static`: about 925 KB uncompressed (about 287 KB gzipped, summed per file), CSS about 110 KB.
+- Output files: home-screen icons (`public/*.png`), `seed.sql` (generated import, git-ignored), JSON backup downloaded from the app.
+- There is no automated test suite; `scripts/smoke-test.mjs` and `scripts/check-live.mjs` are manual HTTP checks.
 
 ## Get started (your own copy)
 You need Node.js 20+ and a free Cloudflare account.
@@ -98,36 +206,29 @@ and asks for your password. Your notes and settings start empty and stay in your
 - `npm run import`: build `seed.sql` from an Obsidian vault. `npm run icons`: remake the default icons.
 - `node scripts/smoke-test.mjs <url>` / `node scripts/check-live.mjs <url>`: quick checks of a running or deployed site.
 
-## Project structure
-- `app/globals.css`: **the whole design** (colors, fonts, cards, dock, phone layout). Start here to change the look.
-- `app/layout.jsx`: fonts and page setup (the page description used in link previews is here).
-- `lib/layout.js`: tabs, page headings, built-in cards and their default texts, saved layouts.
-- `components/Dashboard.jsx`: draws the open tab, customize mode (drag, edit, add), and the built-in cards.
-- `components/widgets.jsx`: the widgets and the add/edit widget dialog. `components/Logo.jsx`: the logo.
-- `components/tiles.jsx`: the cards themselves (clock, stats, calendar, courses, tasks…).
-- `components/SettingsDialog.jsx`, `SearchDialog.jsx`, `NotePage.jsx`, `Markdown.jsx`, `Gate.jsx` (login).
-- `components/AppProvider.jsx`: loading and saving notes, settings, calendar, theme, the moving-background switch and crash fallback.
-- `components/SkinBackdrop.jsx`: Hyper's and Zeus' moving backgrounds. `components/Buddy.jsx`: the buddies.
-- `components/EmbedHost.jsx`: keeps embedded players (Spotify, YouTube…) playing across tabs. `components/DevicesDialog.jsx`: signed-in devices.
-- `lib/`: note parsing and task edits (`notes.js`), calendar links (`ical.js`), palettes, font styles and backgrounds (`theme.js`),
-  and the server API (`server.js`, used by `app/api/[...route]/route.js`).
+## Repository structure
+```
+app/            layout.jsx, page.jsx, note/[...path]/page.jsx, api/[...route]/route.js, globals.css (whole design)
+components/     20 React files: AppProvider, Dashboard, tiles, widgets, board, NotePage, Markdown, SearchDialog, SettingsDialog,
+                SkinBackdrop (Hyper/Zeus), Buddy, EmbedHost, DevicesDialog, TrashDialog, Gate, Logo, ui
+lib/            notes.js (parsing and edits), layout.js, theme.js, ical.js, server.js (API), demo.js (guest data)
+scripts/        setup-cloudflare, import-vault, demo, make-icons, smoke-test, check-live
+public/         icons, manifest, skins/zeus (7 webp images)
+docs/           GUIDE.md (user guide), DEVELOPMENT.md (dev notes), screenshots/ (6 existing images)
+schema.sql, wrangler.jsonc, wrangler.demo.jsonc, open-next.config.ts, next.config.mjs
+```
+Longer file-by-file notes: **[docs/DEVELOPMENT.md](docs/DEVELOPMENT.md)**; user walkthrough: **[docs/GUIDE.md](docs/GUIDE.md)**.
 
-More notes for working on the code: **[docs/DEVELOPMENT.md](docs/DEVELOPMENT.md)**.
-
-## Your data
-
-The repository holds only code. When you run your own copy, your data lives in three places, all yours:
-
-- **Cloudflare D1 database** (`home-dashboard`, in your Cloudflare account): every note and task, the dashboard
-  settings (themes, layout, widgets, buddies, calendar links, the task bin), uploaded pictures (the `blobs` table),
-  signed-in devices (`sessions`: device, IP address, city/country, times) and wrong-password attempts (`login_log`, 30
-  days; `login_fails`, 15 minutes, for rate limiting).
-- **Cloudflare Worker secrets**: the password (`APP_PASSWORD`) and the key that signs logins (`SESSION_SECRET`).
-  They are never in the code and can't be read back, only replaced.
-- **Each browser** (local storage, per device): light/dark, moving background on/off, the open tab, folded sections, and short-lived caches
-  of calendar events and weather. No notes.
-
-Settings > Account > **Download backup** saves all notes and settings as one JSON file.
+## Data and storage
+The repository holds only code. At runtime:
+- **D1 tables** (`schema.sql`): `files` (notes), `blobs` (pictures, video metadata, icons; `trashed_at`), `settings` (key -> JSON),
+  `video_parts` (1 MB base64 parts), `sessions`, `login_log` (30 days), `login_fails` (15-minute rate limit). Settings keys used:
+  `dashboard`, `task_bin`, `gcal_urls`, `hw_urls`, `hw_done`, `hw_since`, `icon_sig`, `tidied_at`.
+- **Worker secrets**: `APP_PASSWORD`, `SESSION_SECRET` (never in code).
+- **Browser localStorage** (per device, no notes): `k-theme`, `k-look`, `k-pal2`, `k-tab`, `k-home-scroll`, `k-fold-*`, `k-open-*`, `k-motion`,
+  `k-motion-auto`, `k-boot`, `k-recent-since`, `k-signin-check`, `k-gcal-cache`, `k-wx-<city>`.
+- **Offline**: no service worker or offline queue; the app needs the network (the guest demo works without the server). **Import/export**:
+  Obsidian vault import (`npm run import`), JSON backup download.
 
 ## Security
 - **One password**, checked on the server only. It's compared as HMACs, so the time taken doesn't hint at the
@@ -196,5 +297,21 @@ Settings > Account > **Download backup** saves all notes and settings as one JSO
 10. Security pass; your own video slideshow for Zeus; embed widgets take pasted embed code.
 11. Signed-in devices with remote log out and sign-in alerts; embeds that keep playing across tabs; a public demo build.
 
+## Project Facts (for resume)
+Plain facts only, verified from the code and git history. Items marked TODO need the owner.
+
+- **Course / class**: none indicated in the repository. TODO: confirm (personal project?).
+- **Solo or team**: git history shows a single author (`kookithub`), 2 commits, both on 2026-11-15. No other contributors in the log. TODO: confirm whether anyone else contributed outside git.
+- **My contributions (git)**: commit 1 "Personal Dashboard & Tracker": 65 files, 16,198 insertions (includes lockfile, CSS, docs, 6 screenshots, 7 skin images). Commit 2 "Due dates in notes as labels, Hyper glow default, idle player layer": 4 files, 12 insertions, 2 deletions. Everything in the repository is attributed to this one author. TODO: confirm the project timeline before 2026-11-15 (history appears squashed into the first commit).
+- **Languages / frameworks / libraries**: JavaScript (JSX), CSS, SQL, one TypeScript config file; Next.js 16.4.6, React 19.3.1, marked 18.2.0, DOMPurify 3.4.17, moment 2.30.1, lucide-react 1.72.0; dev: @opennextjs/cloudflare 1.20.16, wrangler 4.160.0; Cloudflare Workers + D1.
+- **Size** (line counts via `wc -l` of tracked files, excluding `package-lock.json`): JSX 4,680; JS 1,237 (`lib/` plus route handler); MJS scripts 293; CSS 3,223; SQL 54; TS 3; about 9,500 lines of code and styles in total. Markdown docs about 385 lines. 20 component files in `components/`, 86 React function components counted by a name pattern, 6 modules in `lib/`, 6 scripts.
+- **Product size**: 14 built-in cards, 9 widget types, 6 default tabs, 10 palettes plus 2 animated themes, 6 font styles, 6 card decorations, 6 buddy kinds (5 built-in plus custom picture), 21 API endpoint/method pairs, 7 database tables, 8 settings keys, 14 localStorage key families.
+- **Key features**: Markdown notes as the data model with derived tasks, courses, exam progress, projects and habits; iCal calendar and homework feeds; drag-and-drop customisable layout and widgets; embed widget with cross-tab playback; themes (including animated Hyper and Zeus); video slideshow upload; signed-in device management; 30-day trash and undo; guest mode and public demo build.
+- **Algorithms / design patterns**: hand-written Markdown task parser with indentation stack and fenced-code handling (`parseTasks`); pure line-edit functions over note text; optimistic concurrency via version (`mtime`) check with HTTP 409; iCal RRULE expansion with skip-ahead and a 2000-iteration guard; HMAC-signed session cookie plus server-side session rows; constant-time string comparison; IP rate limiting (8 failures per 15 minutes); chunked storage plus HTTP range responses for video; React context providers (AppProvider, BoardCtx, EmbedHost); settings-as-JSON layout model.
+- **Measurable numbers**: production build ran successfully (Next.js 16.4.6): client JS about 925 KB raw / about 287 KB gzipped, CSS about 110 KB. Tests: none exist (0 automated tests). Performance figures quoted above (about 1,800 ms to about 4 ms drawing per second; picture decode about 110 ms to about 0.5 ms; estimated iPhone graphics memory 684 MB) are the author's own measurements recorded in this README and were not re-run for these facts. TODO: confirm those measurements and the author's setup.
+- **Hard problems and how solved (code evidence)**: free-plan 10 ms CPU limit (native `Buffer` base64 decode; 1 MB video parts with byte-range serving); embed players that must not reload (single persistent iframe layer positioned over placeholders); phone graphics memory (small canvases, one slide on the page, crash-count fallback `k-boot`/`k-motion`); data loss on edits from two devices (version check, 409); trash name collisions (unique `.trash/<time>/<path>`); unsafe note HTML (DOMPurify; image-only uploads, no SVG, sandboxed serving); session revocation (per-device DB rows behind signed cookies).
+- **Outcome**: a deployable self-hosted dashboard; a public demo build is supported. TODO: confirm the live demo URL, whether it is deployed, and real-world usage (users, uptime).
+- **Personal data in repo**: none found; sample data in `lib/demo.js` is made up. Secrets are placeholders or Worker secrets only.
+
 ## License
-[MIT](LICENSE) © kookithub
+[MIT](LICENSE) (c) kookithub
