@@ -41,7 +41,7 @@ is made of **14 built-in cards** and **9 widget types** spread over **6 default 
 - **Markdown rendering** (`marked` + `DOMPurify`): GitHub-flavoured Markdown, `[[wiki links]]` (with `|alias` and `#heading`
   parts) resolved to real notes, tickable task checkboxes, sanitised HTML (`<details>`, `<img>`...). Due dates written in a
   note are shown as labels. A `dataview` block in a daily note is replaced by a "due today" list of tasks.
-- **Front matter** (`status`, `code`, `area`, `deadline`, `started`...) is parsed by a small hand-written YAML reader
+- **Front matter** (`status`, `code`, `area`, `deadline`, `started`...) is parsed by a small custom YAML reader
   (key/value and `- item` lists) in `lib/notes.js`.
 - **Search** (`SearchDialog.jsx`): searches note names and full text (name matches rank above text matches, 40 results,
   snippet around the hit), or creates a new note from the query.
@@ -124,7 +124,7 @@ fold sections; `Enter` submits quick-add boxes and renames; `Escape` closes dial
 |---|---|
 | Framework | Next.js 16.4 (App Router, Turbopack) with React 19, JavaScript (JSX, no TypeScript apart from `open-next.config.ts`) |
 | Libraries | `marked` (Markdown), `dompurify` (HTML sanitising), `moment` (dates), `lucide-react` (icons) |
-| Styling | One hand-written stylesheet, `app/globals.css` (3,223 lines), CSS variables for themes; no UI library |
+| Styling | One custom stylesheet, `app/globals.css` (3,223 lines), CSS variables for themes; no UI library |
 | Hosting | Cloudflare Workers via `@opennextjs/cloudflare`; `wrangler` CLI |
 | Database | Cloudflare D1 (SQLite), 7 tables (`schema.sql`) |
 | External services | Google Calendar / school iCal feeds (user-supplied URLs), Open-Meteo (weather), embed hosts (YouTube, Spotify, etc.) |
